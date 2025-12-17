@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Success</title>
+<style>
+body { margin:0; font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:#0f172a; color:#e5e7eb; }
+header { padding:16px; text-align:center; font-size:24px; font-weight:bold; }
+nav { display:flex; justify-content:center; margin:12px 0; gap:12px; }
+nav button { background:#3b82f6; border:none; color:white; padding:8px 12px; border-radius:8px; font-weight:bold; cursor:pointer; transition:0.2s; }
+nav button:hover { background:#2563eb; }
+.container { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; padding:12px; }
+.card { background:#1e293b; padding:12px; border-radius:12px; transition:transform 0.2s, background 0.3s; }
+.card:hover { transform:translateY(-2px); }
+.card h4 { margin:0 0 8px 0; }
+input[type="checkbox"] { display:none; }
+label { display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:6px; }
+label span.icon { font-size:18px; width:24px; display:inline-block; text-align:center; }
+label input:checked + span { color:#16a34a; }
+input[type="time"] { width:100%; padding:6px; margin-top:4px; border-radius:6px; border:none; }
+.stats { margin:12px; padding:12px; background:#2563eb; border-radius:12px; }
+.stats h3 { margin-top:0; }
+.progress-bar { width:100%; background:#1e293b; border-radius:8px; overflow:hidden; margin:4px 0 12px 0; height:12px; }
+.progress { height:100%; background:#16a34a; width:0%; transition:width 0.3s; }
+</style>
+</head>
+<body>
+
+<header>📘 Daily Success</header>
+
+<nav>
+  <button onclick="changeMonth(-1)">⬅ Poprzedni miesiąc</button>
+  <button onclick="changeMonth(1)">Następny miesiąc ➡</button>
+</nav>
+
+<div class="container" id="calendar"></div>
+
+<div class="stats" id="weeklySummary">
+  <h3>📅 Tygodniowe podsumowanie</h3>
+  <div id="weeklyContent"></div>
+</div>
+
+<div class="stats" id="monthlySummary">
+  <h3>📊 Miesięczne podsumowanie</h3>
+  <div id="monthlyContent"></div>
+</div>
+
+<script>
+const habits = [
+  {name:"Picie alkoholu", icon:"🍺"},
+  {name:"Siłownia", icon:"💪"},
+  {name:"Wyjście z domu", icon:"🏠"},
+  {name:"Zarabianie", icon:"💰"},
+  {name:"Godzina wstawania", icon:"⏰"}
+];
+
+let today = new Date();
+let currentMonth = today.getMonth();
+let currentYear = today.getFullYear();
+let data = JSON.parse(localStorage.getItem("daily-success") || "{}");
+
+function monthKey(year, month) { return `${year}-${month+1}`; }
+
+function initMonthData(year, month) {
+  const key = monthKey(year, month);
+  if (!data[key]) data[key] = {};
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  for(let d=1; d<=daysInMonth; d++) {
+    if(!data[key][d]) {
+      data[key][d] = { habits:{} };
+      habits.forEach(h => data[key][d].habits[h.name] = (h.name==="Godzina wstawania")?"":false);
+    }
+  }
+}
+
+function renderCalendar() {
+  initMonthData(currentYear, currentMonth);
+  const container = document.getElementById("calendar");
+  container.innerHTML = "";
+  const key = monthKey(currentYear, currentMonth);
+  const daysInMonth = new Date(currentYear, currentMonth+1, 0).getDate();
+  
+  for(let d=1; d<=daysInMonth; d++) {
+    const date = new Date(currentYear, currentMonth, d);
+    const dayName = date.toLocaleDateString("pl-PL",{weekday:"short"});
+    const card = document.createElement("div");
+    card.className = "card";
+
+    let doneCount = habits.filter(h=>h.name!=="Godzina wstawania" && data[key][d].habits[h.name]).length;
+    let color = "#1e293b";
+    if(doneCount === habits.length-1) color="#16a34a";
+    else if(doneCount>0) color="#facc15";
+    else color="#ef4444";
+    card.style.background=color;
+
+    card.innerHTML=`<h4>${d} ${dayName}</h4>`;
+    habits.forEach(h=>{
+      if(h.name==="Godzina wstawania") {
+        card.innerHTML+=`<label>${h.icon} ${h.name}: <input type="time" value="${data[key][d].habits[h.name]}" onchange="updateHabit(${d}, '${h.name}', this.value)"></label><br>`;
+      } else {
+        card.innerHTML+=`<label><input type="checkbox" ${data[key][d].habits[h.name]?"checked":""} onchange="updateHabit(${d}, '${h.name}', this.checked)"><span class="icon">${h.icon}</span>${h.name}</label><br>`;
+      }
+    });
+    container.appendChild(card);
+  }
+  renderWeeklySummary();
+  renderMonthlySummary();
+}
+
+function updateHabit(day, habit, value) {
+  const key = monthKey(currentYear, currentMonth);
+  data[key][day].habits[habit]=value;
+  localStorage.setItem("daily-success", JSON.stringify(data));
+  renderCalendar();
+}
+
+function renderWeeklySummary() {
+  const content=document.getElementById("weeklyContent");
+  content.innerHTML="";
+  const key=monthKey(currentYear,currentMonth);
+  const daysInMonth=new Date(currentYear,currentMonth+1,0).getDate();
+  for(let w=0; w<Math.ceil(daysInMonth/7); w++){
+    const weekHabits={}; habits.forEach(h=>weekHabits[h.name]=0);
+    for(let d=w*7+1; d<=Math.min((w+1)*7,daysInMonth); d++){
+      habits.forEach(h=>{
+        if(h.name!=="Godzina wstawania" && data[key][d].habits[h.name]) weekHabits[h.name]++;
+      });
+    }
+    let weekDiv=document.createElement("div");
+    weekDiv.innerHTML=`<b>Tydzień ${w+1}</b><br>`;
+    habits.forEach(h=>{
+      if(h.name!=="Godzina wstawania"){
+        let percent=((weekHabits[h.name]/7)*100).toFixed(0);
+        weekDiv.innerHTML+=`${h.name}: <div class="progress-bar"><div class="progress" style="width:${percent}%"></div></div>`;
+      }
+    });
+    content.appendChild(weekDiv);
+  }
+}
+
+function renderMonthlySummary() {
+  const content=document.getElementById("monthlyContent");
+  content.innerHTML="";
+  const key=monthKey(currentYear,currentMonth);
+  const daysInMonth=new Date(currentYear,currentMonth+1,0).getDate();
+  habits.forEach(h=>{
+    if(h.name==="Godzina wstawania") return;
+    let count=0;
+    for(let d=1; d<=daysInMonth; d++) if(data[key][d].habits[h.name]) count++;
+    let percent=((count/daysInMonth)*100).toFixed(0);
+    content.innerHTML+=`${h.name}: <div class="progress-bar"><div class="progress" style="width:${percent}%"></div></div>`;
+  });
+}
+
+function changeMonth(offset){
+  currentMonth+=offset;
+  if(currentMonth<0){currentMonth=11; currentYear--;}
+  if(currentMonth>11){currentMonth=0; currentYear++;}
+  renderCalendar();
+}
+
+renderCalendar();
+</script>
+
+</body>
+</html>
